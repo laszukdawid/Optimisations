@@ -6,8 +6,6 @@
 #
 # Feel free to contact for any information.
 #
-# Last update: 04/02/2017
-#
 # You can cite this code by referencing:
 #   D. Laszuk, "Python implementation of Particle
 #   Swarm Optimisation," 2015-,
@@ -44,7 +42,7 @@ def halton_sequence(size, dim):
 
     for d in range(dim):
         base = next(primeGen)
-        seq[d] = np.array([vdc(i, base) for i in xrange(size)])
+        seq[d] = np.array([vdc(i, base) for i in range(size)])
 
     return seq
 
