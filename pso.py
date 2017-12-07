@@ -29,6 +29,7 @@
 #
 
 from __future__ import print_function
+from multiprocessing.dummy import Pool as ThreadPool
 
 import logging
 import numpy as np
@@ -75,7 +76,7 @@ class PSO:
 
     logger = logging.getLogger(__name__)
 
-    def __init__(self, func, bounds, initPos=None, nPart=None):
+    def __init__(self, func, bounds, initPos=None, nPart=None, **kwargs):
         """
         Performs Particle Swarm Optimisation to find the minimum of
         `func` function within provided parameters `bounds` range.
@@ -131,6 +132,9 @@ class PSO:
 
         # How often print debug update
         self.refreshRate = 1 # %
+
+        threads = 4 if "threads" not in kwargs else kwargs["threads"]
+        self.pool = ThreadPool(threads)
 
     def setInitPos(self, initPos):
         """
@@ -190,36 +194,7 @@ class PSO:
                 self.globBestPos = part.pos
 
     def update(self):
-        """Updates each step"""
-        for part in self.Particles:
-
-            # Gen param
-            rP, rG = np.random.random(2)
-            # Replacing random values with speed vector
-
-            w, phiP, phiG = self.w, self.phiP, self.phiG
-
-            # Update velocity
-            v, pos = part.vel, part.pos
-            part.vel = self.w*v
-            part.vel += phiP*rP*(part.bestPos-pos) # local best update
-            part.vel += phiG*rG*(self.globBestPos-pos) # global best update
-
-            part.vel += self.phiN*self.noise() # perturbation
-
-            # New position
-            part.pos += part.vel
-
-            # If pos outside bounds
-            if np.any(part.pos<self.minBound):
-                idx = part.pos<self.minBound
-                part.pos[idx] = self.minBound[idx]
-            if np.any(part.pos>self.maxBound):
-                idx = part.pos>self.maxBound
-                part.pos[idx] = self.maxBound[idx]
-
-            # New fitness
-            part.fitness = self.problem(part.pos)
+        results = self.pool.map(self._update_single, self.Particles)
 
         # Global and local best fitness
         for part in self.Particles:
@@ -232,6 +207,36 @@ class PSO:
             if part.fitness < self.globBestFit:
                 self.globBestFit = part.fitness
                 self.globBestPos = part.pos
+
+    def _update_single(self, part):
+        """Updates each step"""
+        # Gen param
+        rP, rG = np.random.random(2)
+        # Replacing random values with speed vector
+
+        w, phiP, phiG = self.w, self.phiP, self.phiG
+
+        # Update velocity
+        v, pos = part.vel, part.pos
+        part.vel = self.w*v
+        part.vel += phiP*rP*(part.bestPos-pos) # local best update
+        part.vel += phiG*rG*(self.globBestPos-pos) # global best update
+
+        part.vel += self.phiN*self.noise() # perturbation
+
+        # New position
+        part.pos += part.vel
+
+        # If pos outside bounds
+        if np.any(part.pos<self.minBound):
+            idx = part.pos<self.minBound
+            part.pos[idx] = self.minBound[idx]
+        if np.any(part.pos>self.maxBound):
+            idx = part.pos>self.maxBound
+            part.pos[idx] = self.maxBound[idx]
+
+        # New fitness
+        part.fitness = self.problem(part.pos)
 
     def getGlobalBest(self):
         return self.globBestPos, self.globBestFit
@@ -294,7 +299,8 @@ if __name__ == "__main__":
     numParam = 4
     bounds = ([0]*numParam, [10]*numParam)
 
-    pso = PSO(minProb, bounds)
+    config = {"threads": 8}
+    pso = PSO(minProb, bounds, **config)
     bestPos, bestFit = pso.optimize()
 
     print('bestFit: ', bestFit)
@@ -302,7 +308,15 @@ if __name__ == "__main__":
 
     ############################
     # Visual results representation
-    import pylab as plt
+    try:
+        import pylab as plt
+    except ImportError:
+        print()
+        print("Skipping comparison plot as Matplotlib is not installed.")
+        print("This is bonus, so don't worry, you're not missing anything.")
+        import sys
+        sys.exit()
+
     plt.figure()
     plt.plot(t, S, 'b')
     plt.plot(t, rec(bestPos), 'r')
